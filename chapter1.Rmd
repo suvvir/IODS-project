@@ -1,7 +1,11 @@
 
 # IODS-Project 2018
 
+*******************
+
 *This is a project for Introduction to Open Data Science course at the University of Helsinki*
 
+
+*******************
 
 [Click here to access my GitHub repository](https://github.com/suvvir/IODS-project)
