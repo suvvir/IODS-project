@@ -1,6 +1,5 @@
 ---
 title: "IODS course project"
-author: "Suvi Virtanen"
 output:
   html_document:
     theme: cosmo
