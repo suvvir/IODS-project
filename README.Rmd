@@ -1,4 +1,8 @@
 
+---
+output: github_document
+---
+
 
 ## Course Diary
 
