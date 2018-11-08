@@ -1,7 +1,109 @@
-# Insert chapter 2 title here
+---
+output:
+  html_document: default
+  pdf_document: default
+---
 
-*Describe the work you have done this week and summarize your learning.*
+# Regression and model validation
+<br>
 
-- Describe your work and results clearly. 
-- Assume the reader has an introductory course level understanding of writing and reading R code as well as statistical methods
-- Assume the reader has no previous knowledge of your data or the more advanced methods you are using  
+*This week we used linear regression modeling to estimate the effect of attitudes and learning styles on statistics class performance.*
+
+- In a sample of 166 students, global attitude towards statistics predicted how well one performed in the final class exam. Learning style or age were not associated with exam performance.
+- The tested model explained 19% of the variation in exam performance. However, the results should be interpreted with caution, as there was evidence that the assumptions of linear modeling were violated.
+
+<br><br>
+
+**Prepare data**
+
+<br>
+
+``````{r results='hide', message=FALSE, warning=FALSE}
+setwd("~/yhis-kouluhommat/IODS-project")
+
+library(ggplot2)
+library(dplyr)
+library(GGally)
+
+data <- read.csv("learning2014.csv", header = T)
+keep_columns <- c("gender","Age","attitude", "deep", "stra", "surf", "Points")
+learning2014 <- select(data, one_of(keep_columns))
+```
+
+<br><br>
+
+**Examining the dimensions and the structure of the data**
+
+<br>
+
+```{r}
+dim(learning2014)
+```
+
+<br>
+There are 166 observations and 7 variables in the learning2014 data set.
+<br>
+
+```{r}
+str(learning2014)
+```
+
+<br>
+Most of the variables are integer number variables, except for gender, which is a factor variable. Deep, srta and surf are scale variables measuring different types of learning techniques (ie. deep, strategic and surface learning). Attitude refers to the global attitude towards statistics. These scale variables are measured on a Likert scale (1 through 5). Points refer to the final exam performance.
+<br><br>
+
+**A graphical overview of the data**
+<br>
+
+```{r}
+p <- ggpairs(learning2014, mapping = aes(col=gender, alpha=0.3), lower = list(combo = wrap("facethist", bins = 20)))
+p
+```
+
+
+<br><br>
+**Summary statistics**
+<br>
+
+```{r}
+summary(learning2014)
+```
+
+<br>
+Two thirds of the sample were female. The average age of the participants was 25.5 years. Majority of the scale variabes had the mean of approximately 3.5. The distribution was close to normal in the strategic learning scale, but the distributions of other scale variables were rather skewed. There were also gender differences in variances and means. The strongest positive correlation was found between attitude towards statistics and exam performance. The strongest negative correlation was between deep learning and surface learning. Interestingly, the association appeared to be driven by male participants.
+
+<br><br>
+**Linear regression**
+<br>
+
+```{r}
+my_model <- lm(Points ~ attitude + stra + Age, data = learning2014)
+summary(my_model)
+```
+
+<br>
+The summary above shows a linear regression model predicting final exam performance. Explanatory variables in this model were attitude, stategic learning style, and age. The test statistics (p-values) suggest that only attitude was statistically significant predictior of exam points. Increase of one point in the attitude scale predicted approximately 3.48 point increase in the final exam.
+<br><br>
+
+```{r}
+my_model2 <- lm(Points ~ attitude, data = learning2014)
+summary(my_model2)
+```
+
+<br>
+In this model, the non-significant predictor variables have been removed. Now, increase of one point in the attitude scale predicted approximately 3.53 point increase in the final exam. This model explained 19% of the variation in final exam performance.
+<br>
+
+
+<br><br>
+**Diagnostic plots**
+<br>
+
+```{r}
+par(mfrow = c(2,2))
+plot(my_model2, which=c(1,2,5))
+```
+
+<br>
+Diagnostic plots are useful for examining whether the assumptions in linear regression modeling have been met. The first plot (residuals vs. fitted) shows that the residuals did not have non-linear patterns. Any non-linear patterns in residuals would violate the assumptions of linear regression modeling. In the Normal Q-Q plot, the points fell along a line in the middle of the graph, but curved off in the extremities. Normal Q-Q plots that exhibit this behavior usually mean the data have more extreme values than would be expected if they truly came from a Normal distribution. In other words, there was evidence that the Points variable violated one of the modeling assumptions. The third plot shows influential outliers in the data. The lower and upper hand corners had no observations, so there did not seem to be outliers that violate the validity of the regression model.
+<br><br>
