@@ -1,0 +1,198 @@
+---
+title: "Open Data Science 2018"
+author: "Suvi Virtanen"
+date: "15 marraskuuta 2018"
+output: html_document
+---
+
+# Logistic regression
+<br>
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+<br><br>
+```{r results='hide', message=FALSE, warning=FALSE}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(boot)
+```
+
+<br><br>
+<b>Data</b>
+```{r}
+alc <- read.csv("alc.csv", header = T)
+
+str(alc)
+
+```
+
+<br><br>
+This data approach student achievement in secondary education of two Portuguese schools. The data attributes include student grades, demographic, social and school related features and it was collected by using school reports and questionnaires. The dependent variable in the present report was risky alcohol consumption. First, general level of alcohol consumption was defined as the average of weekday and weekend alcohol consumption (both measured on scale from 1 - very low to 5 - very high). Individual was defined as high-level alcohol user if their averge alcohol consumption was greater than 2.
+<br>
+The main explanatory variables are sex (male, female), quality of family relationships (numeric: from 1 - very bad to 5 - excellent), mother's education (numeric: 0 - none, 1 - primary education - 4th grade, 2 - 5th to 9th grade, 3 - secondary education or 4 - higher education), going out with friends (numeric: from 1 - very low to 5 - very high).  
+
+<br><br>
+<b>The hypotheses of the present report are as follows:</b>
+
+1. Male sex is associatied with higher risk of high alcohol consumption
+2. Better familiy relationships are protective against high alcohol consumption
+3. Mother's low education predicts higher risk of high alcohol consumption
+4. Going out with friends frequently predicts higher risk of high alcohol consumption
+
+<br><br>
+
+Prepararing variables
+<br>
+```{r warning=FALSE}
+keep_columns <- c("sex","Medu","famrel", "goout", "high_use")
+
+data <- select(alc, one_of(keep_columns))
+
+str(data)
+
+```
+
+<br><br>
+<b>Variable frequencies</b>
+```{r message=FALSE, warning=FALSE}
+
+gather(data) %>% ggplot(aes(value)) + facet_wrap("key", scales = "free") + geom_bar()
+
+```
+
+<br>
+Most of the students appear to have good relationships with their parents (famly relations ship mode value was 4/5). Going out with friends variable was close to normal distribution, i.e. most student go out with friends sometimes, but not all the time. High use was relatively common in the sample, a little less than 1/3 were classified as high users. Most had mothers with higher education. The sample was balanced on the proportions of boys and girls.
+
+<br><br>
+
+<b>Associations between dependent and independent variables </b>
+<br><br>
+Family relationships
+<br><br>
+```{r}
+data %>% group_by(sex, high_use) %>% summarise(count = n(), mean_grade=mean(famrel))
+
+g1 <- ggplot(data, aes(x = high_use, y = famrel, col=sex))
+
+
+g1 + geom_boxplot() + ylab("family relationships")
+
+```
+
+<br> Above, the results of group mean comparisons and the box plot figure show that the means in family relationship quality were very close to one another in high use and non-high use groups. However, the variance was much larger in the high use group, indicating that in there was more variability in this group in the family relationship quality.
+<br>
+
+<br><br>
+Going out with friends
+<br><br>
+```{r}
+data %>% group_by(sex, high_use) %>% summarise(count = n(), mean_grade=mean(goout))
+
+g1 <- ggplot(data, aes(x = high_use, y = goout, col=sex))
+
+
+g1 + geom_boxplot() + ylab("Going out with friends")
+
+```
+
+<br> The group mean comparisons and the box plot figure show that there appears to be mean differences in the frequency of going out with friends. The group that uses more alcohol goes out with friends more frequently.
+<br>
+
+<br><br>
+Mother's education
+<br><br>
+```{r}
+data %>% group_by(sex, high_use) %>% summarise(count = n(), mean_grade=mean(Medu))
+
+g1 <- ggplot(data, aes(x = high_use, y = Medu, col=sex))
+
+
+g1 + geom_boxplot() + ylab("Mother's education")
+
+```
+
+<br>
+There seems to be no clear differences between high risk and non-high risk alcohol users regarding mother's education.
+<br>
+
+<br><br>
+<b>Logistic regression</b>
+<br>
+```{r}
+m <- glm(high_use ~ sex + famrel + goout + Medu, data = alc, family = "binomial")
+summary(m)
+```
+
+<br>
+Computing Odds Ratios
+<br>
+
+```{r}
+OR <- coef(m) %>% exp
+CI <- confint(m) %>% exp
+cbind(OR, CI)
+```
+
+<br>
+The logistic regression model shows that all variables but mother's education had statistically significant relationsips with alcohol consumption (p-value less than 0.05). 
+
+<br>Boys, compared to girls, had 2.6 times the odds of being a high risk alcohol user. This result provides support for the first hypothesis of gender differences in high risk alcohol use.
+
+<br>Increase in going out with friends increased the odds of high risk alcohol use. This is also in line with the original hypothesis.
+
+<br> Further, as relationship quality with family decreased, the odds of high risk increased. The result supports the hypothesis that worse family relationships would increase the risk of alcohol consumption.
+
+<br>No support was found for the fourth hypothesis, where mother's education was expected to be associated with alcohol consumption.
+<br><br>
+
+<br><br>
+<b>Model performance</b>
+<br>
+
+Family relationship
+
+```{r}
+
+probabilities <- predict(m, type = "response")
+data <- mutate(data, probability = probabilities)
+data <- mutate(data, prediction = probability > 0.5)
+select(data, famrel, goout, sex, high_use, probability, prediction) %>% tail(10)
+table(high_use = data$high_use, prediction = data$prediction)
+```
+
+```{r}
+g <- ggplot(data, aes(x = probability, y = high_use, col = prediction))
+g + geom_point()
+```
+
+<br>
+```{r}
+table(high_use = data$high_use, prediction = data$prediction) %>% prop.table() %>% addmargins()
+```
+
+<br> The proportion of the so-called false positives was about 5%. The sensitivity of the model (identifying true positive cases) was 13%. The proportion of false negatives was 17%, and specificity of the model (identifying true negatives) was 65%. In sum, the model was not particularly good at identyfying cases of high risk alcohol use. By guessing, one has the probability of 0.15 (?) for identifying high risk users in the present data. Thus, the model performs a bit worse than by pure chance.
+
+<br><br>
+Average number of wrong predictions in the (training) data & 10-fold cross-validation
+<br>
+
+```{r}
+
+loss_func <- function(class, prob) {
+  n_wrong <- abs(class - prob) > 0.5
+  mean(n_wrong)
+}
+
+loss_func(class = data$high_use, prob = data$probability)
+
+cv <- cv.glm(data = data, cost = loss_func, glmfit = m, K = 10)
+
+cv$delta[1]
+```
+
+<br><br>
+The error of 0.24 was found in the 10-fold cross-validation, which is slightly better than the 0.26 error in the DataCamp exercises.
+<br>
