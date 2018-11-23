@@ -1,0 +1,258 @@
+---
+title: "Clustering and classification"
+author: "Suvi"
+date: "November 23, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Clustering and classification
+<br>
+
+```{r results='hide', message=FALSE, warning=FALSE}
+setwd("~/yhis-kouluhommat/IODS-project")
+
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(MASS)
+library(tidyr)
+library(boot)
+library(corrplot)
+
+```
+
+
+```{r}
+data(Boston)
+str(Boston)
+summary(Boston)
+```
+
+
+<br>
+In the Boston dataset, there are 506 observations and 14 variables, which have been studied in relation to housing values in suburbs of Boston, e.g. crime rate, taxation, population composition, and accessibility to radial highways.
+<br><br><br>
+
+<b> Variable frequencies and correlations </b>
+<br>
+```{r message=FALSE, warning=FALSE}
+
+gather(Boston) %>% ggplot(aes(value)) + facet_wrap("key", scales = "free") + geom_bar()
+
+```
+
+<br>Crime rate (crim) average is 3.6 per capita. However, the distribution is rather skewed, since the maximum value is 88. Mean age of the sample is approximately 68 years. The tax rate variable is also very skewed to the right, i.e. the mode value of property-tax rate per \$10,000 is 650, but there is a low variablitiy on the low end as well (200-400). Similar distribution is seen in the accessibility to radial highways (rad variable)
+<br><br><br>
+
+```{r}
+# calculate the correlation matrix and round it
+cor_matrix<-cor(Boston) %>% round(digits=2)
+
+# print the correlation matrix
+cor_matrix
+
+# visualize the correlation matrix
+corrplot(cor_matrix, method="circle", type="upper", cl.pos = "b", tl.pos = "d",tl.cex = 0.6)
+
+```
+
+
+<br><br> Correlation matrix shows several large negative and positive associations. For example, the correlation between crime rate and accessibility to radial highways and tax-rate are 0.63 and 0.58 respectively. There is a strong negative correlation between proportion of non-retail business acres per town and weighted mean of distances to five Boston employment centres, and lower status of the population and median value of homes.
+<br><br><br>
+```{r}
+# center and standardize variables
+boston_scaled <- scale(Boston)
+
+# summaries of the scaled variables
+summary(boston_scaled)
+
+# class of the boston_scaled object
+class(boston_scaled)
+
+# change the object to data frame
+boston_scaled <- as.data.frame(boston_scaled)
+
+
+
+```
+
+
+<br><br> Here we have standardized all each observation of every variable by exctracting the mean and multiplying by the SD of said variable. The outcome is that all these variables have a mean of 0 and SD of 1.
+<br><br><br>
+<br> <b>Modifying the target variable </b>
+
+```{r}
+# class of the boston_scaled object
+class(boston_scaled)
+
+
+# summary of the scaled crime rate
+summary(boston_scaled$crim)
+
+# create a quantile vector of crim and print it
+bins <- quantile(boston_scaled$crim)
+bins
+
+labels <- c("low","med_low","med_high","high")
+
+# create a categorical variable 'crime'
+crime <- cut(boston_scaled$crim, breaks = bins, include.lowest = TRUE, label=labels)
+
+
+# look at the table of the new factor crime
+table(crime)
+
+# remove original crim from the dataset
+boston_scaled <- dplyr::select(boston_scaled, -crim)
+
+# add the new categorical value to scaled data
+boston_scaled <- data.frame(boston_scaled, crime)
+
+
+```
+
+
+<br><br>
+<b> Create test and train set </b>
+
+```{r}
+# number of rows in the Boston dataset 
+n <- nrow(boston_scaled)
+
+# choose randomly 80% of the rows
+ind <- sample(n,  size = n * 0.8)
+
+# create train set
+train <- boston_scaled[ind,]
+
+# create test set 
+test <- boston_scaled[-ind,]
+
+# save the correct classes from test data
+correct_classes <- test$crime
+
+# remove the crime variable from test data
+test <- dplyr::select(test, -crime)
+
+```
+
+<br><br>
+<b> Linear discriminant analysis </b>
+
+```{r}
+# linear discriminant analysis
+lda.fit <- lda(crime ~., data = train)
+
+# print the lda.fit object
+lda.fit
+
+# the function for lda biplot arrows
+lda.arrows <- function(x, myscale = 1, arrow_heads = 0.1, color = "red", tex = 0.75, choices = c(1,2)){
+  heads <- coef(x)
+  arrows(x0 = 0, y0 = 0, 
+         x1 = myscale * heads[,choices[1]], 
+         y1 = myscale * heads[,choices[2]], col=color, length = arrow_heads)
+  text(myscale * heads[,choices], labels = row.names(heads), 
+       cex = tex, col=color, pos=3)
+}
+
+# target classes as numeric
+classes <- as.numeric(train$crime)
+
+# plot the lda results
+plot(lda.fit, dimen = 2, col=classes, pch=classes)
+lda.arrows(lda.fit, myscale = 3)
+
+```
+
+
+<br> LDA on the training set showed 3 LD dimensions. However, only the first LD seems to work in discriminating cases adequately.
+
+<br><br>
+```{r}
+# predict classes with test data
+lda.pred <- predict(lda.fit, newdata = test)
+
+# cross tabulate the results
+table(correct = correct_classes, predicted = lda.pred$class)
+
+```
+
+<br><br> The model seemed to be rather good at predicting high crime rate cases. The low-and in-between cases were not classified as accurately.
+
+
+<br>
+
+```{r}
+
+# center and standardize variables
+boston_scale <- scale(Boston)
+
+# euclidean distance matrix
+dist_eu <- dist(boston_scale)
+
+# look at the summary of the distances
+summary(dist_eu)
+
+
+
+```
+
+<br> The output shows that the average distance between the rows of a data matrix is 4.9.
+<br><br>
+
+```{r}
+# k-means clustering
+km <-kmeans(boston_scale, centers = 3)
+
+# plot the Boston dataset with clusters
+pairs(boston_scale, col = km$cluster)
+
+```
+<br>
+
+```{r}
+set.seed(123)
+
+# determine the number of clusters
+k_max <- 10
+
+# calculate the total within sum of squares
+twcss <- sapply(1:k_max, function(k){kmeans(boston_scale, k)$tot.withinss})
+
+# visualize the results
+qplot(x = 1:k_max, y = twcss, geom = 'line')
+
+
+```
+<br><br>
+The nuber of clusters can be determined based on large drops in total within sum of squares. My interpretation is that there could be 2 to 3 clusters, but let's stick with 2.
+
+<br>
+```{r}
+# k-means clustering
+km <-kmeans(boston_scale, centers = 2)
+
+# plot the Boston dataset with clusters
+pairs(boston_scale, col = km$cluster)
+
+km$size
+
+center <-km$centers
+center
+
+```
+
+
+
+<br> The output shows two clusters, the first is smaller than the second. 
+
+<br> Cluster 1 is associated wih lower crime, average age, taxes, and proportion of non-retail business acres. It also has higher proportion of black people and distances to five Boston employment centres.
+
+<br> Cluster 2 is associates with higher crime, nitrogen oxides concentration, age, accessibility to radial highways, taxes, and with more individuals with lower status of the population (percent).
+
+<br><br><br>

@@ -14,10 +14,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 <br><br>
 ```{r results='hide', message=FALSE, warning=FALSE}
-library(dplyr)
-library(tidyr)
+
+setwd("~/yhis-kouluhommat/IODS-project")
+
 library(ggplot2)
+library(dplyr)
+library(GGally)
+library(MASS)
+library(tidyr)
 library(boot)
+library(corrplot)
 ```
 
 <br><br>
