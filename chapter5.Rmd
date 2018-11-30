@@ -1,0 +1,167 @@
+---
+title: "Dimensionality reduction"
+author: "Suvi"
+date: "November 30, 2018"
+output: html_document
+---
+
+#Dimensionality reduction
+<br>
+
+```{r results='hide', message=FALSE, warning=FALSE}
+
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(MASS)
+library(tidyr)
+library(boot)
+library(corrplot)
+library(FactoMineR)
+
+data <- read.csv("human.csv", header = T, row.names = 1)
+rownames(data) <- data[, 1] ## set rownames
+data <- data[, -1]          ## remove the first variable
+summary(data)
+
+```
+
+<br><br> Graphical overview of the data
+
+
+
+```{r}
+
+gather(data) %>% ggplot(aes(value)) + facet_wrap("key", scales = "free") + geom_density()
+
+
+```
+<br><br> Most variables have rather skewed distributions, except for Expected years of schooling and Percetange of female representatives in parliament. Majority of the countries have relatively low adolescent birth rate. Mean of expected years of education is 13 years, and most of the countries have expected years of eductaion in the range of 11-15 years. Life expectancy is on averge 71 years. Female to male-ratio in the proportion of individuals with at least secondary level education is around 0.85 meaning that, on average, women receive less education than men. Famale to male-ratio in participation in the work force is lower, approximately 0.70. Maternal mortality rate is low in most of the countries, but the range of the distribution is large. The average proportion of the female representatives in parliament is 20%.
+<br><br>
+
+```{r}
+# calculate the correlation matrix and round it
+cor_matrix<-cor(data) %>% round(digits=2)
+
+# print the correlation matrix
+cor_matrix
+
+# visualize the correlation matrix
+corrplot(cor_matrix, method="circle", type="upper", cl.pos = "b", tl.pos = "d",tl.cex = 0.6)
+```
+
+<br><br>There are large negative as well as positive correlations between the variables. Higher life expectancy and years or education are associated with lower maternal mortality rate and adolescent birth rate. Higher life expectancy predicts more years of education, and higher Gross National Income per capita. Increase in female to male-ratio in secondary education is associated with increase in life expectancy and and years of education.
+
+<br>
+```{r message=FALSE, warning=FALSE}
+# perform principal component analysis (with the SVD method)
+pca_human <- prcomp(data)
+
+# draw a biplot of the principal component representation and the original variables
+biplot(pca_human, choices = 1:2,cex = c(1, 1),col = c("grey40", "deeppink2"))
+
+#summary of pc2
+pca_human$rotation
+
+# create and print out a summary of pca_human
+s <- summary(pca_human)
+s
+
+# rounded percetanges of variance captured by each PC
+pca_pr <- round(1*s$importance[2, ], digits = 5)
+
+# print out the percentages of variance
+pca_pr
+
+
+
+```
+
+<br> Looks like PC1 explains nearly 100% of the variation. GNI and all other variables appear as if virtually orthagonal, which seems unlikely.
+<br><br><br>
+<b> Standardizing variables</b>
+
+
+```{r}
+
+# standardize the variables
+human_std <- scale(data)
+
+# print out summaries of the standardized variables
+summary(human_std)
+
+# perform principal component analysis (with the SVD method)
+pca2_human <- prcomp(human_std)
+
+#summary of pc2
+pca2_human$rotation
+
+# draw a biplot of the principal component representation and the original variables
+biplot(pca2_human, choices = 1:2,cex = c(0.8, 1.5),col = c("grey40", "deeppink2"))
+
+# create and print out a summary of pca_human
+s <- summary(pca2_human)
+s
+
+# rounded percetanges of variance captured by each PC
+pca2_pr <- round(1*s$importance[2, ], digits = 5)
+
+# print out the percentages of variance
+pca2_pr
+
+```
+
+<br><br> The biplot looks quite different in the normalized data. The first PCA did not work very well, since some of the variables had a large variance and some small. The PCA will load on the large variances, which is why there was one component dominating the rest.
+
+<br>There appears to be at least 3 relevant principal components. The first relates to maternal mortality rate and adolescent birth rate. They are closely associated, which makes sense given that in e.g. in developing countries both adolescenct pregnancies and death during childbirth are relatively common, at least in part due to women's position in the society and the lack of access to medical care. Giving birth while very young may also increase the risk of dying during childbirth. This component coud represent something such as state of the women's reproductive health in the country.
+
+<br>The second component includes ratio of women to men in the work force. I would interpret this as the component representing opportunities for women to have economic independence/influence outside the home sphere.
+
+<br>The third component is not quite the same, but rather close to the component with female-to-male ratio in the work force. The proportion of women in the parliament might represent how much women have political power/opportunities to have inluence on politics in the country.
+
+<br>The fourth component includes variables associated with expected years of education and life expectancy. I would interpret this component to be associated with prosperity of the country, educational systems/opportunities, and health care access.
+
+<br><br>
+<b> TEA DATA </b>
+
+```{r}
+data(tea)
+
+# column names to keep in the dataset
+keep_columns <- c("Tea", "How", "how", "sugar", "where", "lunch")
+
+# select the 'keep_columns' to create a new dataset
+tea_time <- dplyr::select(tea, one_of(keep_columns))
+
+str(tea_time)
+dim(tea_time)
+
+```
+
+<br><br> Graphical overview 
+
+```{r message=FALSE, warning=FALSE}
+# visualize the dataset
+b <- gather(tea_time) %>% ggplot(aes(value)) + facet_wrap("key", scales = "free") + theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+
+b + geom_bar()
+
+
+```
+
+<br><br> Most common form of tea consumed was via tea bag. Most people prefer to drink their tea in solitude, and not over luch. There were nearly as many people who used sugar with their tea as who did not. Earl gray was the most common tea type, and majority bought their tea from a chain store.
+
+<br>
+```{r}
+# multiple correspondence analysis
+mca <- MCA(tea_time, graph = FALSE)
+
+# summary of the model
+summary(mca)
+
+# visualize MCA
+plot(mca, invisible=c("ind"), habillage = "quali")
+
+```
+
+<br><br> Looking at the visualization of the MCA, it appears that people who bought their tea from tea shops, were more likely to drink unpackaged tea than other types. They may have preferred green tea as well. Those who bought from the chain store, usually used tea bags. Then there was a group which did not really have a preference - they bought from the store as well as tea shops, and drank packaged and unpackaged teas. Many also drank lemon tea.

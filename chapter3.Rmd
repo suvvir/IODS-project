@@ -55,7 +55,7 @@ Prepararing variables
 ```{r warning=FALSE}
 keep_columns <- c("sex","Medu","famrel", "goout", "high_use")
 
-data <- select(alc, one_of(keep_columns))
+data <- dplyr::select(alc, one_of(keep_columns))
 
 str(data)
 
@@ -165,7 +165,7 @@ Family relationship
 probabilities <- predict(m, type = "response")
 data <- mutate(data, probability = probabilities)
 data <- mutate(data, prediction = probability > 0.5)
-select(data, famrel, goout, sex, high_use, probability, prediction) %>% tail(10)
+dplyr::select(data, famrel, goout, sex, high_use, probability, prediction) %>% tail(10)
 table(high_use = data$high_use, prediction = data$prediction)
 ```
 
