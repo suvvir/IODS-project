@@ -1,0 +1,275 @@
+---
+title: "Longitudinal analysis"
+author: "Suvi Virtanen"
+date: "4 joulukuuta 2018"
+output: html_document
+---
+
+#Analysis of longitudinal data
+<br><br>
+
+<br><b> Analysis of Longitudinal Data I: Graphical Displays and Summary Measure Approach </b>
+
+<br><br>
+
+```{r results='hide', message=FALSE, warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(MASS)
+library(tidyr)
+library(boot)
+library(corrplot)
+library(lme4)
+
+RATSL <- read.csv("ratsl.csv", header = T)
+BPRSL <- read.csv("bprsl.csv", header = T)
+```
+
+<br><br> Let's take a look at the RATS data:
+
+
+```{r}
+RATSL$ID <- factor(RATSL$ID)
+RATSL$Group <- factor(RATSL$Group)
+summary(RATSL)
+str(RATSL)
+```
+
+
+<br><br> Plotting individuals growth curves for individual rats in the RATSL data
+
+```{r}
+ggplot(RATSL, aes(x = Time, y = Weight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  scale_y_continuous(name = "Unstandardized weight")
+```
+
+<br><br> Rats in group 1 develop similarly over time (ie. growth is slow), there is some variability within the group. Rats in groups 2 and 3 gain more weight, and start from a higher weight level as compared to group 1. There are also substantial individual differences within these groups.
+
+<br><br>
+
+```{r}
+# Standardise the variable Weight
+RATSL <- RATSL %>%
+  group_by(Group) %>%
+  mutate(stdweight = (Weight - mean(Weight))/sd(Weight) ) %>%
+  ungroup()
+
+glimpse(RATSL)
+
+```
+
+
+
+<br><br>
+
+```{r}
+# Plot again with the standardised weight
+
+ggplot(RATSL, aes(x = Time, y = stdweight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  scale_y_continuous(name = "standardized weight")
+
+```
+
+<br><br> The large within and between group variablility in growth curves and starting points in weight can be seen very clearly in these standardized plots as well.
+<br>
+
+```{r}
+# Number of weeks, baseline (week 0) included
+n <- RATSL$Time %>% unique() %>% length()
+
+# Summary data with mean and standard error of rats by Group and Week
+RATSS <- RATSL %>%
+  group_by(Group, Time) %>%
+  summarise( mean = mean(Weight), se = sd(Weight)/sqrt(n) ) %>%
+  ungroup()
+
+# Glimpse the data
+glimpse(RATSS)
+
+```
+
+```{r}
+# Plot the mean profiles
+ggplot(RATSS, aes(x = Time, y = mean, linetype = Group, shape = Group)) +
+  geom_line() +
+  geom_point(size=3) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se, linetype="1"), width=0.3) +
+  theme(legend.position = c(0.8,0.8)) +
+  scale_y_continuous(name = "mean(weight) +/- se(weight)")
+
+```
+
+<br><br> The figure above shows mean weight profiles for the 3 rat groups. Group 1 is clearly distinct from the other 2. Error bars indicate that groups 2 and 3 also have statistically different mean levels at each time point.
+
+
+```{r}
+# Create a summary data by treatment and subject with mean as the summary variable.
+RATSL8S <- RATSL %>%
+  group_by(Group, ID) %>%
+  summarise( mean=mean(Weight) ) %>%
+  ungroup()
+
+# Glimpse the data
+glimpse(RATSL8S)
+
+```
+
+<br><br>
+```{r}
+# Draw a boxplot of the mean versus group
+ggplot(RATSL8S, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun.y = "mean", geom = "point", shape=23, size=4, fill = "white") +
+  scale_y_continuous(name = "mean(weight), time 0-60")
+
+```
+
+<br><br> Illustration of mean weight in different groups of rats. Group 1 has the lowest mean weight. Group 3 has the largest. Group 2 has the largest variance.
+
+<br>
+```{r}
+# Confirming statistical significance of mean differences with ANOVA
+model <- lm(data=RATSL8S, mean ~ Group)
+anova(model)
+
+```
+
+<br><br As the grouping variable has a p-value smaller than .05, it indicates that the rat groups have significantly different mean weights.
+
+
+
+<br><br><b> Analysis of Longitudinal Data II: Linear Mixed Effects Models for Normal Response Variables </b>
+
+<br>Now, we are switching to the BPRL data:
+
+```{r}
+BPRSL$treatment <- factor(BPRSL$treatment)
+BPRSL$subject <- factor(BPRSL$subject)
+glimpse(BPRSL)
+```
+
+
+```{r}
+# Plot of symptoms against time, ignoring the repeated-measures structure of the data but identifying the group to which each observation belongs.
+
+ggplot(BPRSL, aes(x = week, y = bprs)) + geom_text(aes(linetype = treatment, label = treatment)) + scale_x_continuous(name = "Time (days)") + scale_y_continuous(name = "Weight (grams)") + theme(legend.position = "top")
+```
+
+
+
+<br><br>
+```{r}
+# Linear regression: ignoring the lognitudinal nature of the data
+
+# create a regression model BPRS_reg
+BPRS_reg <- lm(data = BPRSL, bprs ~ week + treatment + week*treatment)
+
+# print out a summary of the model
+summary(BPRS_reg)
+
+
+```
+
+<br><br> Looks like only week (time) had statistically significant effect on the symptoms. In other words, it did not seem to matter if the subject was in the treatment or the control group, their symptoms - on averge - were reduced either way. Also, the week-by-treatment interaction not being significant implicates that the effect of time on symptoms was not dependent on which group the subject belonged to.
+
+<br><br>
+Next, let's move on to inspecting the data longitudinally.
+
+```{r}
+
+# Draw the plot
+ggplot(BPRSL, aes(x = week, y = bprs, linetype = subject)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ treatment, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(BPRSL$bprs), max(BPRSL$bprs)))
+
+
+```
+
+<br><br> Plots show individual variation in BPRS scores over the 8-week intervention period in the treatment and control groups. It is not very informative, as the variability is very high in both groups.
+
+<br><br> Next up, longitudinal modeling:
+
+```{r}
+# Create a random intercept model
+BPRS_ref <- lmer(bprs ~ week + treatment + (1 | subject), data = BPRSL, REML = FALSE)
+
+summary(BPRS_ref)
+
+
+
+```
+
+<br><br> In this model, we have allowed intercepts to vary by study subject. Random effects suject variance is quite large, so it seems that this was a good decision. There is decrease in symptoms over time, but treatment vs. control group has no significant effect.
+<br><br>
+```{r}
+
+# create a random intercept and random slope model
+BPRS_ref1 <- lmer(bprs ~ week + treatment + (week | subject), data = BPRSL, REML = FALSE)
+
+# print a summary of the model
+summary(BPRS_ref1)
+
+
+```
+
+<br><br> Now, adding random slope also allows for the growth curves to vary between individuals. There is variance in random slopes as well. 
+
+<br>
+```{r}
+# perform an ANOVA test on the two models
+anova(BPRS_ref1, BPRS_ref)
+
+```
+
+<br><br> With ANOVA, we can compare these two models with one another. Lower BIC and AIC values indicate that the model has better fit with the data. Model with random intercept and slope has sightly better fit, as indicated by the p-value < .05.
+<br>
+
+```{r}
+# create a random intercept and random slope model with the interaction
+BPRS_ref2 <- lmer(bprs ~ week + treatment + week * treatment + (week | subject), data = BPRSL, REML = FALSE)
+
+# print a summary of the model
+summary(BPRS_ref2)
+
+# perform an ANOVA test on the two models
+anova(BPRS_ref2, BPRS_ref1)
+
+```
+
+<br><br> The interaction term between time and treatment group did not reach significance, nor did it significantly improve the model. In other words, the effect of time on symptoms was not dependent on which group the subject belonged to. Thus, it can be left out because the simpler model is preferred in case the model fit is the similar.
+
+<br>
+
+```{r results='hide', message=FALSE, warning=FALSE}
+
+# Create a vector of the fitted values
+Fitted <- fitted(BPRS_ref1)
+
+# Create a new column fitted to bprSL
+mutate(BPRSL, Fitted = Fitted)
+
+```
+
+```{r}
+# draw the plot of BPRSL with the Fitted values of symptoms
+ggplot(BPRSL, aes(x = week, y = Fitted, group = treatment)) +
+  geom_smooth(aes(linetype = treatment)) +
+  scale_x_continuous(name = "Time (weeks)") +
+  scale_y_continuous(name = "Fitted bprs (score)") +
+  theme(legend.position = "top")
+```
+
+
+
+<br><br> The above figure shows plot of fitted values in both treatment and control group. They appear to have very similar trajectories.
+
